@@ -67,6 +67,8 @@ module Brcobranca
           raise 'Não foi possível encontrar o template. Verifique o caminho' unless File.exist?(template_path)
 
           modelo_generico_template(doc, boleto, template_path)
+          modelo_generico_cabecalho(doc, boleto)
+          modelo_generico_rodape(doc, boleto)
 
           # Gerando codigo de barra com rghost_barcode
           if boleto.codigo_barras
@@ -144,20 +146,6 @@ module Brcobranca
           move_more(doc, 1.5, 0)
           doc.show boleto.quantidade
 
-          move_more(doc, 2, 0)
-          doc.show boleto.documento_cedente.formata_documento.to_s
-
-          move_more(doc, 3.8, 0)
-          doc.show boleto.data_vencimento.to_s_br
-
-          move_more(doc, 5, 0)
-          doc.show boleto.valor_documento.to_currency
-
-          move_more(doc, -15, -1.3)
-          doc.show "#{boleto.sacado} - #{boleto.sacado_documento.formata_documento}"
-
-          move_more(doc, 0, -0.3)
-          doc.show boleto.sacado_endereco.to_s
           return unless boleto.demonstrativo
 
           doc.text_area boleto.demonstrativo, width: '18.5 cm', text_align: :left, x: "#{@x - 0.8} cm",
