@@ -19,7 +19,7 @@ module Brcobranca
           when :both
             [Brcobranca::Boleto::Template::Rghost, Brcobranca::Boleto::Template::RghostCarne]
           else
-            [Brcobranca::Boleto::Template::Rghost]
+            [Brcobranca::Boleto::Template::Praso]
           end
         end
       end

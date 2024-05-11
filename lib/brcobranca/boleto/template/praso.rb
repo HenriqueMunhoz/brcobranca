@@ -20,7 +20,7 @@ module Brcobranca
   module Boleto
     module Template
       # Templates para usar com Rghost
-      module RghostBolepix
+      module Praso
         extend self
         include RGhost unless include?(RGhost)
         RGhost::Config::GS[:external_encoding] = Brcobranca.configuration.external_encoding
