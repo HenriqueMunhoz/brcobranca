@@ -66,7 +66,16 @@ module Brcobranca
 
           raise 'Não foi possível encontrar o template. Verifique o caminho' unless File.exist?(template_path)
 
+          @x = 0.5
+          @y = 27.42
           modelo_generico_template(doc, boleto, template_path)
+          # modelo_generico_cabecalho(doc, boleto)
+          # modelo_generico_rodape(doc, boleto)
+
+          # Gerando codigo de barra com rghost_barcode
+          if boleto.codigo_barras
+            doc.barcode_interleaved2of5(boleto.codigo_barras, width: '10.3 cm', height: '1.3 cm', x: "#{@x - 1.7} cm",
+                                                              y: "#{@y - 1.67} cm")
           end
 
           # Gerando QRCode a partir de um emv
