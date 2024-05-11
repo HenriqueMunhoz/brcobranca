@@ -20,7 +20,7 @@ module Brcobranca
   module Boleto
     module Template
       # Templates para usar com Rghost
-      module Praso
+      module Rghost
         extend self
         include RGhost unless include?(RGhost)
         RGhost::Config::GS[:external_encoding] = Brcobranca.configuration.external_encoding
@@ -33,6 +33,15 @@ module Brcobranca
         # @see Rghost#modelo_generico Recebe os mesmos parâmetros do Rghost#modelo_generico.
         def to(formato, options = {})
           modelo_generico(self, options.merge!(formato: formato))
+        end
+
+        # Gera o boleto em usando o formato desejado [:pdf, :jpg, :tif, :png, :ps, :laserjet, ... etc]
+        #
+        # @return [Stream]
+        # @see http://wiki.github.com/shairontoledo/rghost/supported-devices-drivers-and-formats Veja mais formatos na documentação do rghost.
+        # @see Rghost#modelo_generico Recebe os mesmos parâmetros do Rghost#modelo_generico.
+        def lote(boletos, options = {})
+          modelo_generico_multipage(boletos, options)
         end
 
         #  Cria o métodos dinâmicos (to_pdf, to_gif e etc) com todos os fomátos válidos.
@@ -76,17 +85,40 @@ module Brcobranca
                                                               y: "#{@y - 1.67} cm")
           end
 
-          # Gerando QRCode a partir de um emv
-          if boleto.emv
-            doc.barcode_qrcode(boleto.emv, width: '2.5 cm',
-                                           height: '2.5 cm',
-                                           eclevel: 'H',
-                                           x: "#{@x + 12.9} cm",
-                                           y: "#{@y - 2.50} cm")
-            move_more(doc, @x + 12.9, @y - 3.70)
-            doc.show 'Pague com PIX'
-          end
+          # Gerando stream
+          formato = options.delete(:formato) || Brcobranca.configuration.formato
+          resolucao = options.delete(:resolucao) || Brcobranca.configuration.resolucao
+          doc.render_stream(formato.to_sym, resolution: resolucao)
+        end
 
+        # Retorna um stream para multiplos boletos pronto para gravação em arquivo.
+        #
+        # @return [Stream]
+        # @param [Array] Instâncias de classes de boleto.
+        # @param [Hash] options Opção para a criação do boleto.
+        # @option options [Symbol] :resolucao Resolução em pixels.
+        # @option options [Symbol] :formato Formato desejado [:pdf, :jpg, :tif, :png, :ps, :laserjet, ... etc]
+        def modelo_generico_multipage(boletos, options = {})
+          doc = Document.new paper: :A4 # 210x297
+
+          template_path = File.join(File.dirname(__FILE__), '..', '..', 'arquivos', 'templates', 'modelo_generico.eps')
+
+          raise 'Não foi possível encontrar o template. Verifique o caminho' unless File.exist?(template_path)
+
+          boletos.each_with_index do |boleto, index|
+            modelo_generico_template(doc, boleto, template_path)
+            modelo_generico_cabecalho(doc, boleto)
+            modelo_generico_rodape(doc, boleto)
+
+            # Gerando codigo de barra com rghost_barcode
+            if boleto.codigo_barras
+              doc.barcode_interleaved2of5(boleto.codigo_barras, width: '10.3 cm', height: '1.3 cm', x: "#{@x - 1.7} cm",
+                                                                y: "#{@y - 1.67} cm")
+            end
+
+            # Cria nova página se não for o último boleto
+            doc.next_page unless index == boletos.length - 1
+          end
           # Gerando stream
           formato = options.delete(:formato) || Brcobranca.configuration.formato
           resolucao = options.delete(:resolucao) || Brcobranca.configuration.resolucao
@@ -146,6 +178,20 @@ module Brcobranca
           move_more(doc, 1.5, 0)
           doc.show boleto.quantidade
 
+          move_more(doc, 2, 0)
+          doc.show boleto.documento_cedente.formata_documento.to_s
+
+          move_more(doc, 3.8, 0)
+          doc.show boleto.data_vencimento.to_s_br
+
+          move_more(doc, 5, 0)
+          doc.show boleto.valor_documento.to_currency
+
+          move_more(doc, -15, -1.3)
+          doc.show "#{boleto.sacado} - #{boleto.sacado_documento.formata_documento}"
+
+          move_more(doc, 0, -0.3)
+          doc.show boleto.sacado_endereco.to_s
           return unless boleto.demonstrativo
 
           doc.text_area boleto.demonstrativo, width: '18.5 cm', text_align: :left, x: "#{@x - 0.8} cm",
@@ -161,29 +207,6 @@ module Brcobranca
           @x = 0.50
           @y = 12.22
           # LOGOTIPO do BANCO
-          doc.image boleto.logotipo, x: "#{@x} cm", y: "#{@y} cm"
-
-          move_more(doc, 4.84, 0.01)
-          doc.show "#{boleto.banco}-#{boleto.banco_dv}", tag: :maior
-
-          move_more(doc, 2, 0)
-          doc.show boleto.codigo_barras.linha_digitavel, tag: :grande
-
-          move_more(doc, -6.5, -0.9)
-          doc.show boleto.local_pagamento
-
-          move_more(doc, 15.8, 0)
-          doc.show boleto.data_vencimento.to_s_br if boleto.data_vencimento
-
-          move_more(doc, -15.8, -0.8)
-          if boleto.cedente_endereco
-            doc.show boleto.cedente_endereco
-            move_more(doc, 1.2, 0.3)
-            doc.show boleto.cedente
-            move_more(doc, -1.2, -0.3)
-          else
-            doc.show boleto.cedente
-          end
 
           move_more(doc, 15.8, 0)
           doc.show boleto.agencia_conta_boleto
@@ -221,9 +244,7 @@ module Brcobranca
           doc.show boleto.valor_documento.to_currency
 
           if boleto.instrucoes
-            doc.text_area boleto.instrucoes, width: '14 cm',
-                                             text_align: :left, x: "#{@x -= 15.8} cm",
-                                             y: "#{@y -= 0.9} cm",
+            doc.text_area boleto.instrucoes, width: '14 cm', text_align: :left, x: "#{@x -= 15.8} cm", y: "#{@y -= 0.9} cm",
                                              row_height: '0.4 cm'
             move_more(doc, 0, -2)
           else
@@ -248,8 +269,7 @@ module Brcobranca
 
           move_more(doc, 0.5, -1.9)
           if boleto.sacado && boleto.sacado_documento
-            sacado_info = "#{boleto.sacado} - CPF/CNPJ: #{boleto.sacado_documento.formata_documento}"
-            doc.show sacado_info
+            doc.show "#{boleto.sacado} - CPF/CNPJ: #{boleto.sacado_documento.formata_documento}"
           end
 
           move_more(doc, 0, -0.4)
