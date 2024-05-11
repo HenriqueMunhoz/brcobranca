@@ -67,7 +67,6 @@ module Brcobranca
           raise 'Não foi possível encontrar o template. Verifique o caminho' unless File.exist?(template_path)
 
           modelo_generico_template(doc, boleto, template_path)
-          modelo_generico_cabecalho(doc, boleto)
 
           # Gerando codigo de barra com rghost_barcode
           if boleto.codigo_barras

@@ -7,6 +7,8 @@ module Brcobranca
         module_function
 
         def define_template(template)
+          return [Brcobranca::Boleto::Template::Praso]
+
           case template
           when :rghost
             [Brcobranca::Boleto::Template::Rghost]
